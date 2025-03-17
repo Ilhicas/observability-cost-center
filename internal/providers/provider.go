@@ -15,15 +15,18 @@ type UsageData struct {
 
 // CostData represents cost metrics from a provider
 type CostData struct {
-	Service   string
-	ItemName  string
-	Cost      float64
-	Currency  string
-	Period    string
-	StartTime time.Time
-	EndTime   time.Time
-	Region    string
-	Quantity  float64
+	Service     string
+	ItemName    string
+	Cost        float64
+	Currency    string
+	Period      string
+	StartTime   time.Time
+	EndTime     time.Time
+	Region      string
+	Quantity    float64
+	UsageUnit   string
+	AccountID   string
+	Description string
 }
 
 // Provider interface that must be implemented by each observability provider

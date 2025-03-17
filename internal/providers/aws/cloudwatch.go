@@ -18,8 +18,9 @@ import (
 
 // CloudWatchProvider implements the Provider interface for AWS CloudWatch
 type CloudWatchProvider struct {
-	client *cloudwatch.Client
-	region string
+	client  *cloudwatch.Client
+	region  string
+	profile string
 }
 
 // NewCloudWatchProvider creates a new AWS CloudWatch provider
@@ -57,8 +58,9 @@ func NewCloudWatchProvider(config *viper.Viper) (*CloudWatchProvider, error) {
 	// Create the provider with the CloudWatch client using our config
 	client := cloudwatch.NewFromConfig(cfg)
 	return &CloudWatchProvider{
-		client: client,
-		region: cfg.Region,
+		client:  client,
+		region:  cfg.Region,
+		profile: profile,
 	}, nil
 }
 
@@ -154,10 +156,16 @@ func (c *CloudWatchProvider) GetUsageData(start, end time.Time) ([]providers.Usa
 
 // GetCostData retrieves cost data related to CloudWatch using AWS Cost Explorer API
 func (c *CloudWatchProvider) GetCostData(start, end time.Time) ([]providers.CostData, error) {
-	// Create Cost Explorer client using the same region
+	// Create Cost Explorer client using the same region and profile
 	opts := []func(*awsconfig.LoadOptions) error{
 		awsconfig.WithRegion(c.region),
 	}
+
+	// Add profile if it's set
+	if c.profile != "" {
+		opts = append(opts, awsconfig.WithSharedConfigProfile(c.profile))
+	}
+
 	cfg, err := awsconfig.LoadDefaultConfig(context.TODO(), opts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load AWS config for Cost Explorer: %w", err)
@@ -170,7 +178,7 @@ func (c *CloudWatchProvider) GetCostData(start, end time.Time) ([]providers.Cost
 
 	fmt.Printf("Querying AWS Cost Explorer from %s to %s\n", start.Format("2006-01-02"), endDate.Format("2006-01-02"))
 
-	// Query with service dimension filter to focus on CloudWatch services
+	// Keep the original input with only two GroupBy dimensions (AWS limit)
 	input := &costexplorer.GetCostAndUsageInput{
 		TimePeriod: &cetypes.DateInterval{
 			Start: stringPtr(start.Format("2006-01-02")),
@@ -268,19 +276,26 @@ func (c *CloudWatchProvider) GetCostData(start, end time.Time) ([]providers.Cost
 				}
 			}
 
+			// Determine usage unit and description based on the service name
+			usageUnit, description := inferUsageInfo(serviceName, usage)
+
 			// Always include the entry, even with zero cost
-			fmt.Printf("CloudWatch service: %s, Account: %s, Cost: %.6f %s, Usage: %.2f\n",
-				serviceName, accountId, cost, currency, usage)
+			fmt.Printf("CloudWatch service: %s, Account: %s, Date: %s, Cost: %.6f %s, Usage: %.2f %s (%s)\n",
+				serviceName, accountId, periodStart.Format("2006-01-02"), cost, currency, usage, usageUnit, description)
 
 			results = append(results, providers.CostData{
-				Service:   serviceName,
-				ItemName:  fmt.Sprintf("Account: %s", accountId),
-				Cost:      cost,
-				Currency:  currency,
-				Quantity:  usage,
-				Period:    "Daily",
-				StartTime: periodStart,
-				EndTime:   periodEnd,
+				Service:     serviceName,
+				ItemName:    fmt.Sprintf("Account: %s", accountId),
+				Cost:        cost,
+				Currency:    currency,
+				Quantity:    usage,
+				UsageUnit:   usageUnit,
+				Period:      "Daily",
+				StartTime:   periodStart,
+				EndTime:     periodEnd,
+				AccountID:   accountId,
+				Description: description,
+				Region:      c.region,
 			})
 		}
 	}
@@ -367,6 +382,94 @@ func (c *CloudWatchProvider) GetCostData(start, end time.Time) ([]providers.Cost
 	}
 
 	return results, nil
+}
+
+// inferUsageInfo infers usage type information based on the service name
+func inferUsageInfo(serviceName string, usage float64) (string, string) {
+	// Default values
+	unit := "Count"
+	description := "Standard usage"
+
+	// Try to infer usage type from service name
+	switch {
+	case strings.Contains(strings.ToLower(serviceName), "logs"):
+		if usage > 1000 {
+			unit = "Events"
+			description = "Log Events"
+		} else {
+			unit = "GB"
+			description = "Log Data"
+		}
+	case strings.Contains(strings.ToLower(serviceName), "metric"):
+		unit = "MetricMonths"
+		description = "Metrics Monitored"
+	case strings.Contains(strings.ToLower(serviceName), "dashboard"):
+		unit = "DashboardMonths"
+		description = "Dashboard Usage"
+	case strings.Contains(strings.ToLower(serviceName), "alarm"):
+		unit = "AlarmMonths"
+		description = "Alarm Monitoring"
+	case strings.Contains(strings.ToLower(serviceName), "api"):
+		unit = "API-Requests"
+		description = "API Calls"
+	case usage > 1000000:
+		unit = "Count"
+		description = "High Volume Events"
+	case usage > 1000:
+		unit = "Count"
+		description = "Medium Volume Events"
+	case usage > 1:
+		unit = "GB"
+		description = "Data Processing"
+	default:
+		unit = "Units"
+		description = "Standard Usage"
+	}
+
+	return unit, description
+}
+
+// determineUsageTypeInfo extracts information about the usage type
+func determineUsageTypeInfo(usageType string) (string, string) {
+	// Default values
+	unit := "Count"
+	description := "Standard usage"
+
+	// Process CloudWatch usage types
+	switch {
+	case strings.Contains(usageType, "DataIngestion"):
+		unit = "GB"
+		description = "Data Ingestion"
+	case strings.Contains(usageType, "DataStorage"):
+		unit = "GB-Month"
+		description = "Data Storage"
+	case strings.Contains(usageType, "Metrics"):
+		unit = "MetricMonitorHours"
+		description = "Metrics Monitored"
+	case strings.Contains(usageType, "Dashboard"):
+		unit = "DashboardMonthHours"
+		description = "Dashboard Usage"
+	case strings.Contains(usageType, "Alarm"):
+		unit = "AlarmMonitorHours"
+		description = "Alarm Monitoring"
+	case strings.Contains(usageType, "Requests"):
+		unit = "API-Requests"
+		description = "API Requests"
+	case strings.Contains(usageType, "Log"):
+		unit = "GB"
+		description = "Log Processing"
+	case strings.Contains(usageType, "Events"):
+		unit = "Events"
+		description = "Event Processing"
+	case strings.Contains(usageType, "TimedStorage"):
+		unit = "GB-Month"
+		description = "Log Storage"
+	case strings.Contains(usageType, "DataScanned"):
+		unit = "GB"
+		description = "Data Scanned"
+	}
+
+	return unit, description
 }
 
 // Helper functions

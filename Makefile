@@ -17,7 +17,7 @@ test:
 
 # Provider targets that can be used directly
 aws:
-	./observability-cost-center --config observability-cost-center.yaml report --provider aws
+	./observability-cost-center --output summary --config observability-cost-center.yaml report --provider aws 
 # Special target to handle "make report aws" syntax
 report:
 	@provider="$(filter-out $@,$(MAKECMDGOALS))"; \
