@@ -5,6 +5,8 @@ all: build
 
 # Build the project
 build:
+	go get 
+	go mod tidy
 	go build -o observability-cost-center .
 
 # Clean build artifacts
@@ -17,7 +19,7 @@ test:
 
 # Provider targets that can be used directly
 aws:
-	./observability-cost-center --output summary --config observability-cost-center.yaml report --provider aws 
+	./observability-cost-center --output-file report.txt --output summary --config observability-cost-center.yaml report --provider aws 
 # Special target to handle "make report aws" syntax
 report:
 	@provider="$(filter-out $@,$(MAKECMDGOALS))"; \

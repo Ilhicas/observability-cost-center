@@ -3,7 +3,6 @@ module github.com/ilhicas/observability-cost-center
 go 1.21
 
 require (
-	github.com/aws/aws-sdk-go-v2 v1.21.0
 	github.com/aws/aws-sdk-go-v2/config v1.18.42
 	github.com/aws/aws-sdk-go-v2/service/cloudwatch v1.27.5
 	github.com/aws/aws-sdk-go-v2/service/costexplorer v1.27.5
@@ -14,6 +13,7 @@ require (
 )
 
 require (
+	github.com/aws/aws-sdk-go-v2 v1.21.0 // indirect
 	github.com/aws/aws-sdk-go-v2/credentials v1.13.40 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.13.11 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.1.41 // indirect

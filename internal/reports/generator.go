@@ -2,10 +2,13 @@ package reports
 
 import (
 	"fmt"
+	"io"
+	"os"
 	"sort"
 	"time"
 
 	"github.com/ilhicas/observability-cost-center/internal/providers"
+	"github.com/olekukonko/tablewriter"
 )
 
 // ReportType defines the type of report to generate
@@ -23,6 +26,7 @@ func (rg *ReportGenerator) GenerateReport(reportType ReportType, start, end time
 		ProviderName: rg.provider.GetName(),
 		StartDate:    start,
 		EndDate:      end,
+		ReportType:   string(reportType), // Add this line to set the report type
 	}
 
 	var err error
@@ -68,58 +72,80 @@ func (rg *ReportGenerator) GenerateFullReport(start, end time.Time) (*Report, er
 }
 
 // Output formats and outputs the report according to the specified format
-func (r *Report) Output(format string) error {
+// and optionally writes to a file if filePath is provided
+func (r *Report) Output(format string, filePath string) error {
+	var writer io.Writer = os.Stdout
+
+	// If filePath is provided, create and use the file
+	if filePath != "" {
+		file, err := os.Create(filePath)
+		if err != nil {
+			return fmt.Errorf("failed to create output file: %w", err)
+		}
+		defer file.Close()
+		writer = file
+	}
+
 	switch format {
 	case "json":
-		return r.outputJSON()
+		return r.outputJSON(writer)
 	case "csv":
-		return r.outputCSV()
+		return r.outputCSV(writer)
 	case "table":
-		return r.outputAsTable()
+		return r.outputAsTable(writer)
 	case "summary":
-		return r.outputTable()
+		return r.outputTable(writer)
 	default:
 		return fmt.Errorf("unsupported output format: %s", format)
 	}
 }
 
 // outputJSON outputs the report in JSON format
-func (r *Report) outputJSON() error {
+func (r *Report) outputJSON(w io.Writer) error {
 	// In a real implementation, use JSON marshaling
-	fmt.Println("JSON output format not yet implemented")
+	fmt.Fprintln(w, "JSON output format not yet implemented")
 	return nil
 }
 
 // outputCSV outputs the report in CSV format
-func (r *Report) outputCSV() error {
+func (r *Report) outputCSV(w io.Writer) error {
 	// In a real implementation, write CSV data
-	fmt.Println("CSV output format not yet implemented")
+	fmt.Fprintln(w, "CSV output format not yet implemented")
 	return nil
 }
 
 // outputTable outputs the report in a tabular format
-func (r *Report) outputTable() error {
-	fmt.Printf("Report for %s\n", r.ProviderName)
-	fmt.Printf("Period: %s to %s\n\n", r.StartDate.Format("2006-01-02"), r.EndDate.Format("2006-01-02"))
+func (r *Report) outputTable(w io.Writer) error {
+	// Add debug information to help diagnose issues
+	fmt.Fprintf(w, "Report for %s\n", r.ProviderName)
+	fmt.Fprintf(w, "Period: %s to %s\n", r.StartDate.Format("2006-01-02"), r.EndDate.Format("2006-01-02"))
+	fmt.Fprintf(w, "Report Type: %s\n\n", r.ReportType)
+
+	// Add debug counts
+	fmt.Fprintf(w, "Usage data entries: %d\n", len(r.UsageData))
+	fmt.Fprintf(w, "Cost data entries: %d\n\n", len(r.CostData))
+
+	fmt.Fprintf(w, "Report for %s\n", r.ProviderName)
+	fmt.Fprintf(w, "Period: %s to %s\n\n", r.StartDate.Format("2006-01-02"), r.EndDate.Format("2006-01-02"))
 
 	if len(r.UsageData) > 0 {
-		fmt.Println("=== Usage Data ===")
-		fmt.Printf("%-20s %-20s %-10s %-10s %-20s\n", "Service", "Metric", "Value", "Unit", "Timestamp")
-		fmt.Println("-------------------------------------------------------------------------")
+		fmt.Fprintln(w, "=== Usage Data ===")
+		fmt.Fprintf(w, "%-20s %-20s %-10s %-10s %-20s\n", "Service", "Metric", "Value", "Unit", "Timestamp")
+		fmt.Fprintln(w, "-------------------------------------------------------------------------")
 
 		for _, usage := range r.UsageData {
-			fmt.Printf("%-20s %-20s %-10.2f %-10s %-20s\n",
+			fmt.Fprintf(w, "%-20s %-20s %-10.2f %-10s %-20s\n",
 				usage.Service,
 				usage.Metric,
 				usage.Value,
 				usage.Unit,
 				usage.Timestamp.Format("2006-01-02"))
 		}
-		fmt.Println()
+		fmt.Fprintln(w, "")
 	}
 
 	if len(r.CostData) > 0 {
-		fmt.Println("=== Cost Data ===")
+		fmt.Fprintln(w, "=== Cost Data ===")
 
 		// Group cost data by account
 		accountGroups := make(map[string][]providers.CostData)
@@ -137,7 +163,7 @@ func (r *Report) outputTable() error {
 
 		// For each account, group by day
 		for _, accountID := range accountIDs {
-			fmt.Printf("\n=== Account: %s ===\n", accountID)
+			fmt.Fprintf(w, "\n=== Account: %s ===\n", accountID)
 
 			// Group by day
 			dayGroups := make(map[string][]providers.CostData)
@@ -155,9 +181,9 @@ func (r *Report) outputTable() error {
 			sort.Strings(days)
 
 			// Display costs by day
-			fmt.Printf("%-12s %-25s %-10s %-10s %-20s %-15s\n",
+			fmt.Fprintf(w, "%-12s %-25s %-10s %-10s %-20s %-15s\n",
 				"Date", "Service", "Cost", "Usage", "Unit", "Description")
-			fmt.Println("-----------------------------------------------------------------------------")
+			fmt.Fprintln(w, "-----------------------------------------------------------------------------")
 
 			// Track totals
 			totalCost := 0.0
@@ -176,7 +202,7 @@ func (r *Report) outputTable() error {
 					dailyUsage += cost.Quantity
 					currency = cost.Currency
 
-					fmt.Printf("%-12s %-25s %-10.4f %-10.2f %-20s %-15s\n",
+					fmt.Fprintf(w, "%-12s %-25s %-10.4f %-10.2f %-20s %-15s\n",
 						cost.StartTime.Format("2006-01-02"),
 						cost.Service,
 						cost.Cost,
@@ -186,30 +212,30 @@ func (r *Report) outputTable() error {
 				}
 
 				// Add daily totals
-				fmt.Printf("%-12s %-25s %-10.4f %-10.2f %s\n",
+				fmt.Fprintf(w, "%-12s %-25s %-10.4f %-10.2f %s\n",
 					day,
 					"DAILY TOTAL",
 					dailyCost,
 					dailyUsage,
 					currency)
-				fmt.Println("-----------------------------------------------------------------------------")
+				fmt.Fprintln(w, "-----------------------------------------------------------------------------")
 
 				totalCost += dailyCost
 				totalUsage += dailyUsage
 			}
 
 			// Account total
-			fmt.Printf("\nAccount Total: %.4f %s (Usage: %.2f units)\n", totalCost, currency, totalUsage)
+			fmt.Fprintf(w, "\nAccount Total: %.4f %s (Usage: %.2f units)\n", totalCost, currency, totalUsage)
 		}
 
 		// Overall total
-		fmt.Println("\n=== Overall Totals ===")
+		fmt.Fprintln(w, "\n=== Overall Totals ===")
 		var grandTotalCost float64
 		var grandTotalUsage float64
 		currency := ""
 
-		fmt.Printf("%-20s %-10s %-10s\n", "Account", "Cost", "Usage")
-		fmt.Println("------------------------------------------")
+		fmt.Fprintf(w, "%-20s %-10s %-10s\n", "Account", "Cost", "Usage")
+		fmt.Fprintln(w, "------------------------------------------")
 
 		for _, accountID := range accountIDs {
 			accountCost := 0.0
@@ -221,14 +247,207 @@ func (r *Report) outputTable() error {
 				currency = cost.Currency
 			}
 
-			fmt.Printf("%-20s %-10.4f %-10.2f\n", accountID, accountCost, accountUsage)
+			fmt.Fprintf(w, "%-20s %-10.4f %-10.2f\n", accountID, accountCost, accountUsage)
 			grandTotalCost += accountCost
 			grandTotalUsage += accountUsage
 		}
 
-		fmt.Println("------------------------------------------")
-		fmt.Printf("%-20s %-10.4f %-10.2f %s\n", "GRAND TOTAL", grandTotalCost, grandTotalUsage, currency)
+		fmt.Fprintln(w, "------------------------------------------")
+		fmt.Fprintf(w, "%-20s %-10.4f %s %-10.2f events\n", "GRAND TOTAL", grandTotalCost, currency, grandTotalUsage)
 	}
 
 	return nil
+}
+
+// outputAsTable formats and displays the report as ASCII tables
+func (r *Report) outputAsTable(w io.Writer) error {
+	// Add debug information to help diagnose issues
+	fmt.Fprintf(w, "Report for %s\n", r.ProviderName)
+	fmt.Fprintf(w, "Period: %s to %s\n", r.StartDate.Format("2006-01-02"), r.EndDate.Format("2006-01-02"))
+	fmt.Fprintf(w, "Report Type: %s\n\n", r.ReportType)
+
+	// Add debug counts
+	fmt.Fprintf(w, "Usage data entries: %d\n", len(r.UsageData))
+	fmt.Fprintf(w, "Cost data entries: %d\n\n", len(r.CostData))
+
+	// Create a writer that writes to the provided io.Writer
+	tableWriter := &writerAdapter{w: w}
+
+	fmt.Fprintf(w, "\n%s Report for %s\n", r.ReportType, r.ProviderName)
+	fmt.Fprintf(w, "Period: %s to %s\n\n", r.StartDate.Format("2006-01-02"), r.EndDate.Format("2006-01-02"))
+
+	// Display usage data if available
+	if len(r.UsageData) > 0 && (r.ReportType == "usage" || r.ReportType == "full") {
+		fmt.Fprintln(w, "Usage Data:")
+
+		// Sort usage data by timestamp from oldest to newest
+		sort.Slice(r.UsageData, func(i, j int) bool {
+			return r.UsageData[i].Timestamp.Before(r.UsageData[j].Timestamp)
+		})
+
+		table := tablewriter.NewWriter(tableWriter)
+		table.SetHeader([]string{"Service", "Metric", "Value", "Unit", "Timestamp"})
+		table.SetBorder(false)
+		table.SetAutoWrapText(false)
+		table.SetAutoFormatHeaders(true)
+		table.SetHeaderAlignment(tablewriter.ALIGN_LEFT)
+		table.SetAlignment(tablewriter.ALIGN_LEFT)
+		table.SetCenterSeparator("")
+		table.SetColumnSeparator("")
+		table.SetRowSeparator("")
+		table.SetHeaderLine(false)
+		table.SetTablePadding("\t")
+		table.SetNoWhiteSpace(true)
+
+		for _, usage := range r.UsageData {
+			table.Append([]string{
+				usage.Service,
+				usage.Metric,
+				fmt.Sprintf("%.4f", usage.Value),
+				usage.Unit,
+				usage.Timestamp.Format("2006-01-02 15:04:05"),
+			})
+		}
+		table.Render()
+		fmt.Fprintln(w)
+	}
+
+	// Display cost data if available
+	if len(r.CostData) > 0 && (r.ReportType == "cost" || r.ReportType == "full") {
+		fmt.Fprintln(w, "Cost Data:")
+
+		// Group by account ID
+		accountGroups := make(map[string][]providers.CostData)
+		accountIDs := []string{}
+
+		for _, cost := range r.CostData {
+			if _, exists := accountGroups[cost.AccountID]; !exists {
+				accountIDs = append(accountIDs, cost.AccountID)
+			}
+			accountGroups[cost.AccountID] = append(accountGroups[cost.AccountID], cost)
+		}
+
+		// Sort account IDs
+		sort.Strings(accountIDs)
+
+		// Generate a summary table first
+		summaryTable := tablewriter.NewWriter(tableWriter)
+		summaryTable.SetHeader([]string{"Account ID", "Total Cost", "Currency"})
+		summaryTable.SetBorder(false)
+		summaryTable.SetColumnSeparator(" ")
+
+		var grandTotal float64
+		currency := ""
+
+		for _, accountID := range accountIDs {
+			costs := accountGroups[accountID]
+
+			// Calculate account totals
+			accountTotal := 0.0
+
+			for _, cost := range costs {
+				accountTotal += cost.Cost
+				currency = cost.Currency
+			}
+
+			grandTotal += accountTotal
+
+			summaryTable.Append([]string{
+				accountID,
+				fmt.Sprintf("%.4f", accountTotal),
+				currency,
+			})
+		}
+
+		// Add grand total
+		summaryTable.SetFooter([]string{
+			"TOTAL",
+			fmt.Sprintf("%.4f", grandTotal),
+			currency,
+		})
+		summaryTable.SetFooterAlignment(tablewriter.ALIGN_LEFT)
+
+		fmt.Fprintln(w, "\nAccount Cost Summary:")
+		summaryTable.Render()
+
+		// Now show detailed tables by account
+		fmt.Fprintln(w, "\nDetailed Cost Breakdown by Account:")
+
+		for _, accountID := range accountIDs {
+			costs := accountGroups[accountID]
+
+			// Group by day
+			dayGroups := make(map[string][]providers.CostData)
+			days := make([]string, 0)
+
+			for _, cost := range costs {
+				day := cost.StartTime.Format("2006-01-02")
+				if _, exists := dayGroups[day]; !exists {
+					days = append(days, day)
+				}
+				dayGroups[day] = append(dayGroups[day], cost)
+			}
+
+			// Sort days
+			sort.Strings(days)
+
+			// Account table
+			accountTable := tablewriter.NewWriter(tableWriter)
+			accountTable.SetHeader([]string{"Date", "Service", "Cost", "Usage", "Description"})
+			accountTable.SetCaption(true, fmt.Sprintf("Account ID: %s", accountID))
+			accountTable.SetBorder(false)
+			accountTable.SetColumnSeparator(" | ")
+
+			accountTotal := 0.0
+
+			for _, day := range days {
+				dayCosts := dayGroups[day]
+				dayTotal := 0.0
+
+				for _, cost := range dayCosts {
+					accountTable.Append([]string{
+						cost.StartTime.Format("2006-01-02"),
+						cost.Service,
+						fmt.Sprintf("%.4f %s", cost.Cost, cost.Currency),
+						fmt.Sprintf("%.2f %s", cost.Quantity, cost.UsageUnit),
+						cost.Description,
+					})
+
+					dayTotal += cost.Cost
+				}
+
+				accountTotal += dayTotal
+				accountTable.Append([]string{
+					day,
+					"DAILY TOTAL",
+					fmt.Sprintf("%.4f", dayTotal),
+					"",
+					"",
+				})
+			}
+
+			accountTable.SetFooter([]string{
+				"",
+				"ACCOUNT TOTAL",
+				fmt.Sprintf("%.4f", accountTotal),
+				"",
+				"",
+			})
+
+			accountTable.Render()
+			fmt.Fprintln(w)
+		}
+	}
+
+	return nil
+}
+
+// writerAdapter adapts an io.Writer to work with tablewriter
+type writerAdapter struct {
+	w io.Writer
+}
+
+// Write implements the io.Writer interface
+func (wa *writerAdapter) Write(p []byte) (n int, err error) {
+	return wa.w.Write(p)
 }

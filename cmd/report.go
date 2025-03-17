@@ -16,6 +16,7 @@ var (
 	startDate  string
 	endDate    string
 	reportType string
+	outputFile string
 )
 
 func init() {
@@ -34,6 +35,10 @@ func init() {
 	reportCmd.Flags().StringVar(&startDate, "start-date", time.Now().AddDate(0, -1, 0).Format("2006-01-02"), "Start date for the report (YYYY-MM-DD)")
 	reportCmd.Flags().StringVar(&endDate, "end-date", time.Now().Format("2006-01-02"), "End date for the report (YYYY-MM-DD)")
 	reportCmd.Flags().StringVar(&reportType, "type", "full", "Report type: usage, cost, or full")
+	reportCmd.Flags().StringVar(&outputFile, "output-file", "", "Output file path. If not provided, outputs to stdout")
+
+	// Bind the flags to viper
+	viper.BindPFlag("output.file", reportCmd.Flags().Lookup("output-file"))
 
 	rootCmd.AddCommand(reportCmd)
 }
@@ -100,8 +105,29 @@ func executeReport(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("error generating report: %w", err)
 	}
 
-	outputFormat := viper.GetString("output")
-	err = report.Output(outputFormat)
+	// Add debug information to help diagnose issues
+	fmt.Printf("Generated report with %d usage data entries and %d cost data entries\n",
+		len(report.UsageData), len(report.CostData))
+
+	// Get output format from config or default to table
+	outputFormat := viper.GetString("output.format")
+	if outputFormat == "" {
+		outputFormat = "table"
+	}
+	fmt.Printf("Using output format: %s\n", outputFormat)
+
+	// Get output file path from command line flag or config
+	outputFilePath := outputFile
+	if outputFilePath == "" {
+		outputFilePath = viper.GetString("output.file")
+	}
+	if outputFilePath != "" {
+		fmt.Printf("Writing output to file: %s\n", outputFilePath)
+	} else {
+		fmt.Println("Writing output to stdout")
+	}
+
+	err = report.Output(outputFormat, outputFilePath)
 	if err != nil {
 		return fmt.Errorf("error outputting report: %w", err)
 	}

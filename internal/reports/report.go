@@ -34,7 +34,7 @@ func NewReportGenerator(provider providers.Provider) *ReportGenerator {
 }
 
 // outputAsTable formats and displays the report as ASCII tables
-func (r *Report) outputAsTable() error {
+func (r *Report) outputAsTableV1() error {
 	fmt.Printf("\n%s Report for %s\n", r.ReportType, r.ProviderName)
 	fmt.Printf("Period: %s to %s\n\n", r.StartDate.Format("2006-01-02"), r.EndDate.Format("2006-01-02"))
 
