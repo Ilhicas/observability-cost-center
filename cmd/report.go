@@ -82,18 +82,20 @@ func executeReport(cmd *cobra.Command, args []string) error {
 
 	generator := reports.NewReportGenerator(costProvider)
 	var report *reports.Report
+	var reportTypeEnum reports.ReportType
 
 	switch reportType {
 	case "usage":
-		report, err = generator.GenerateUsageReport(start, end)
+		reportTypeEnum = reports.UsageReport
 	case "cost":
-		report, err = generator.GenerateCostReport(start, end)
+		reportTypeEnum = reports.CostReport
 	case "full":
-		report, err = generator.GenerateFullReport(start, end)
+		reportTypeEnum = reports.FullReport
 	default:
 		return fmt.Errorf("unsupported report type: %s", reportType)
 	}
 
+	report, err = generator.GenerateReport(reportTypeEnum, start, end)
 	if err != nil {
 		return fmt.Errorf("error generating report: %w", err)
 	}

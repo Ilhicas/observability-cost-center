@@ -22,6 +22,8 @@ type CostData struct {
 	Period    string
 	StartTime time.Time
 	EndTime   time.Time
+	Region    string
+	Quantity  float64
 }
 
 // Provider interface that must be implemented by each observability provider

@@ -3,93 +3,65 @@ package reports
 import (
 	"fmt"
 	"time"
-
-	"github.com/ilhicas/observability-cost-center/internal/providers"
 )
 
-// ReportGenerator is responsible for generating reports using provider data
-type ReportGenerator struct {
-	provider providers.Provider
-}
+// ReportType defines the type of report to generate
+type ReportType string
 
-// Report represents a generated report with usage and cost data
-type Report struct {
-	ProviderName string
-	StartDate    time.Time
-	EndDate      time.Time
-	UsageData    []providers.UsageData
-	CostData     []providers.CostData
-	TotalCost    float64
-}
+const (
+	UsageReport ReportType = "usage"
+	CostReport  ReportType = "cost"
+	FullReport  ReportType = "full"
+)
 
-// NewReportGenerator creates a new report generator
-func NewReportGenerator(provider providers.Provider) *ReportGenerator {
-	return &ReportGenerator{
-		provider: provider,
+// GenerateReport generates a report based on the specified report type
+func (rg *ReportGenerator) GenerateReport(reportType ReportType, start, end time.Time) (*Report, error) {
+	report := &Report{
+		ProviderName: rg.provider.GetName(),
+		StartDate:    start,
+		EndDate:      end,
 	}
+
+	var err error
+
+	// Fetch usage data if needed
+	if reportType == UsageReport || reportType == FullReport {
+		report.UsageData, err = rg.provider.GetUsageData(start, end)
+		if err != nil {
+			return nil, fmt.Errorf("error getting usage data: %w", err)
+		}
+	}
+
+	// Fetch cost data if needed
+	if reportType == CostReport || reportType == FullReport {
+		report.CostData, err = rg.provider.GetCostData(start, end)
+		if err != nil {
+			return nil, fmt.Errorf("error getting cost data: %w", err)
+		}
+
+		// Calculate total cost
+		report.TotalCost = 0.0
+		for _, cost := range report.CostData {
+			report.TotalCost += cost.Cost
+		}
+	}
+
+	return report, nil
 }
 
 // GenerateUsageReport generates a report with only usage data
 func (rg *ReportGenerator) GenerateUsageReport(start, end time.Time) (*Report, error) {
-	usageData, err := rg.provider.GetUsageData(start, end)
-	if err != nil {
-		return nil, fmt.Errorf("error getting usage data: %w", err)
-	}
-
-	return &Report{
-		ProviderName: rg.provider.GetName(),
-		StartDate:    start,
-		EndDate:      end,
-		UsageData:    usageData,
-	}, nil
+	return rg.GenerateReport(UsageReport, start, end)
 }
 
 // GenerateCostReport generates a report with only cost data
 func (rg *ReportGenerator) GenerateCostReport(start, end time.Time) (*Report, error) {
-	costData, err := rg.provider.GetCostData(start, end)
-	if err != nil {
-		return nil, fmt.Errorf("error getting cost data: %w", err)
-	}
-
-	totalCost := 0.0
-	for _, cost := range costData {
-		totalCost += cost.Cost
-	}
-
-	return &Report{
-		ProviderName: rg.provider.GetName(),
-		StartDate:    start,
-		EndDate:      end,
-		CostData:     costData,
-		TotalCost:    totalCost,
-	}, nil
+	return rg.GenerateReport(CostReport, start, end)
 }
 
 // GenerateFullReport generates a report with both usage and cost data
 func (rg *ReportGenerator) GenerateFullReport(start, end time.Time) (*Report, error) {
-	usageData, err := rg.provider.GetUsageData(start, end)
-	if err != nil {
-		return nil, fmt.Errorf("error getting usage data: %w", err)
-	}
-
-	costData, err := rg.provider.GetCostData(start, end)
-	if err != nil {
-		return nil, fmt.Errorf("error getting cost data: %w", err)
-	}
-
-	totalCost := 0.0
-	for _, cost := range costData {
-		totalCost += cost.Cost
-	}
-
-	return &Report{
-		ProviderName: rg.provider.GetName(),
-		StartDate:    start,
-		EndDate:      end,
-		UsageData:    usageData,
-		CostData:     costData,
-		TotalCost:    totalCost,
-	}, nil
+	return rg.GenerateReport(FullReport, start, end)
 }
 
 // Output formats and outputs the report according to the specified format
