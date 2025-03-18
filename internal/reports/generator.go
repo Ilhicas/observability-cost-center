@@ -20,6 +20,16 @@ const (
 	FullReport  ReportType = "full"
 )
 
+// Report defines the structure of a report
+
+// AppendCustomSection adds a custom section to the report
+func (r *Report) AppendCustomSection(title, content string) {
+	if r.CustomSections == nil {
+		r.CustomSections = make(map[string]string)
+	}
+	r.CustomSections[title] = content
+}
+
 // GenerateReport generates a report based on the specified report type
 func (rg *ReportGenerator) GenerateReport(reportType ReportType, start, end time.Time) (*Report, error) {
 	report := &Report{
@@ -302,6 +312,14 @@ func (r *Report) outputTable(w io.Writer) error {
 		fmt.Fprintf(w, "%-20s %-10.4f %s %-10.2f events\n", "GRAND TOTAL", grandTotalCost, currency, grandTotalUsage)
 	}
 
+	// After all standard sections, output any custom sections
+	if len(r.CustomSections) > 0 {
+		for title, content := range r.CustomSections {
+			fmt.Fprintf(w, "\n\n=== %s ===\n\n", title)
+			fmt.Fprintln(w, content)
+		}
+	}
+
 	return nil
 }
 
@@ -482,6 +500,15 @@ func (r *Report) outputAsTable(w io.Writer) error {
 
 			accountTable.Render()
 			fmt.Fprintln(w)
+		}
+	}
+
+	// After all standard sections, output any custom sections
+	if len(r.CustomSections) > 0 {
+		fmt.Fprintln(w, "\n")
+		for title, content := range r.CustomSections {
+			fmt.Fprintf(w, "\n=== %s ===\n\n", title)
+			fmt.Fprintln(w, content)
 		}
 	}
 

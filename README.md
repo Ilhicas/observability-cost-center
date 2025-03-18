@@ -50,9 +50,11 @@ observability-cost-center report --provider aws
 
 # Generate a cost-only report for a specific time period
 observability-cost-center report --provider newrelic --type cost --start-date 2023-01-01 --end-date 2023-01-31
+# When using New Relic provider, license costs and usage are automatically included
 
 # Generate a usage-only report and output as JSON
 observability-cost-center report --provider aws --type usage --output json
+
 ```
 
 ## Providers
@@ -73,6 +75,8 @@ Reports on:
 - Infrastructure monitoring
 - Log ingestion
 - Dashboard usage
+- License usage and costs (automatically included)
+- Inactive license identification
 - Associated costs
 
 ## License

@@ -105,6 +105,28 @@ func executeReport(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("error generating report: %w", err)
 	}
 
+	// Only add license usage report if we actually have data
+	if costProvider.GetName() == "newrelic" && len(report.UsageData) > 0 {
+		// Get inactive days flag value, default to 30 if not set
+		inactiveDays := viper.GetInt("newrelic.inactive_days")
+		if inactiveDays == 0 {
+			inactiveDays = 30
+		}
+
+		// Cast to NewRelic provider to access license report methods
+		if nrProvider, ok := costProvider.(*newrelic.NewRelicProvider); ok {
+			fmt.Println("Generating NewRelic license usage report...")
+			licenseReport, err := nrProvider.GetLicenseUsageReport(inactiveDays)
+			if err != nil {
+				fmt.Printf("Warning: Error generating license details: %v\n", err)
+			} else if licenseReport != "" {
+				// Only add license report if it's not empty
+				report.AppendCustomSection("License Usage Details", licenseReport)
+				fmt.Println("License usage report generated successfully")
+			}
+		}
+	}
+
 	// Add debug information to help diagnose issues
 	fmt.Printf("Generated report with %d usage data entries and %d cost data entries\n",
 		len(report.UsageData), len(report.CostData))

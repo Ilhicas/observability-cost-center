@@ -29,10 +29,3 @@ type CostData struct {
 	UsageUnit   string    `json:"usageUnit,omitempty"`
 	Description string    `json:"description,omitempty"`
 }
-
-// Provider interface defines methods all providers must implement
-type Provider interface {
-	GetName() string
-	GetUsageData(start, end time.Time) ([]UsageData, error)
-	GetCostData(start, end time.Time) ([]CostData, error)
-}
