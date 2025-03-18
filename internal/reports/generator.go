@@ -130,18 +130,64 @@ func (r *Report) outputTable(w io.Writer) error {
 
 	if len(r.UsageData) > 0 {
 		fmt.Fprintln(w, "=== Usage Data ===")
-		fmt.Fprintf(w, "%-20s %-20s %-10s %-10s %-20s\n", "Service", "Metric", "Value", "Unit", "Timestamp")
-		fmt.Fprintln(w, "-------------------------------------------------------------------------")
+
+		// Check if we have license data to display separately
+		var licenseData []providers.UsageData
+		var standardUsageData []providers.UsageData
 
 		for _, usage := range r.UsageData {
-			fmt.Fprintf(w, "%-20s %-20s %-10.2f %-10s %-20s\n",
-				usage.Service,
-				usage.Metric,
-				usage.Value,
-				usage.Unit,
-				usage.Timestamp.Format("2006-01-02"))
+			if usage.Service == "Licenses" {
+				licenseData = append(licenseData, usage)
+			} else {
+				standardUsageData = append(standardUsageData, usage)
+			}
 		}
-		fmt.Fprintln(w, "")
+
+		// Display standard usage data
+		if len(standardUsageData) > 0 {
+			fmt.Fprintln(w, "Standard Usage:")
+			fmt.Fprintf(w, "%-20s %-20s %-10s %-10s %-20s\n", "Service", "Metric", "Value", "Unit", "Timestamp")
+			fmt.Fprintln(w, "-------------------------------------------------------------------------")
+
+			for _, usage := range standardUsageData {
+				fmt.Fprintf(w, "%-20s %-20s %-10.2f %-10s %-20s\n",
+					usage.Service,
+					usage.Metric,
+					usage.Value,
+					usage.Unit,
+					usage.Timestamp.Format("2006-01-02"))
+			}
+			fmt.Fprintln(w, "")
+		}
+
+		// Display license usage data if available
+		if len(licenseData) > 0 {
+			fmt.Fprintln(w, "License Usage:")
+			fmt.Fprintf(w, "%-20s %-10s %-10s %-15s\n", "License Type", "Used", "Total", "Utilization %")
+			fmt.Fprintln(w, "-----------------------------------------------------")
+
+			for _, license := range licenseData {
+				// Extract metadata for license info
+				totalLicenses := 0
+				utilizationPct := 0.0
+
+				if license.Metadata != nil {
+					if total, ok := license.Metadata["totalLicenses"].(int); ok {
+						totalLicenses = total
+					}
+					if util, ok := license.Metadata["utilizationPct"].(float64); ok {
+						utilizationPct = util
+					}
+				}
+
+				fmt.Fprintf(w, "%-20s %-10.0f %-10d %-15.1f\n",
+					license.Metric,
+					license.Value,
+					totalLicenses,
+					utilizationPct)
+			}
+			fmt.Fprintln(w, "")
+		}
 	}
 
 	if len(r.CostData) > 0 {

@@ -21,6 +21,8 @@ test:
 aws:
 	./observability-cost-center --output-file report.txt --output summary --config observability-cost-center.yaml report --provider aws 
 # Special target to handle "make report aws" syntax
+newrelic:
+	./observability-cost-center --output-file report.txt --output summary --config observability-cost-center.yaml report --provider newrelic
 report:
 	@provider="$(filter-out $@,$(MAKECMDGOALS))"; \
 	if [ -z "$$provider" ]; then \

@@ -4,39 +4,35 @@ import (
 	"time"
 )
 
-// UsageData represents usage metrics from a provider
+// UsageData represents a single usage metric
 type UsageData struct {
-	Service   string
-	Metric    string
-	Value     float64
-	Unit      string
-	Timestamp time.Time
+	Service   string                 `json:"service"`
+	Metric    string                 `json:"metric"`
+	Value     float64                `json:"value"`
+	Unit      string                 `json:"unit"`
+	Timestamp time.Time              `json:"timestamp"`
+	Metadata  map[string]interface{} `json:"metadata,omitempty"` // Added for additional data like license utilization
 }
 
-// CostData represents cost metrics from a provider
+// CostData represents a single cost item
 type CostData struct {
-	Service     string
-	ItemName    string
-	Cost        float64
-	Currency    string
-	Period      string
-	StartTime   time.Time
-	EndTime     time.Time
-	Region      string
-	Quantity    float64
-	UsageUnit   string
-	AccountID   string
-	Description string
+	Service     string    `json:"service"`
+	ItemName    string    `json:"itemName"`
+	Cost        float64   `json:"cost"`
+	Currency    string    `json:"currency"`
+	Period      string    `json:"period"`
+	StartTime   time.Time `json:"startTime"`
+	EndTime     time.Time `json:"endTime"`
+	AccountID   string    `json:"accountId"`
+	Region      string    `json:"region,omitempty"`
+	Quantity    float64   `json:"quantity,omitempty"`
+	UsageUnit   string    `json:"usageUnit,omitempty"`
+	Description string    `json:"description,omitempty"`
 }
 
-// Provider interface that must be implemented by each observability provider
+// Provider interface defines methods all providers must implement
 type Provider interface {
-	// GetUsageData retrieves usage metrics for the given time range
-	GetUsageData(start, end time.Time) ([]UsageData, error)
-
-	// GetCostData retrieves cost metrics for the given time range
-	GetCostData(start, end time.Time) ([]CostData, error)
-
-	// GetName returns the provider name
 	GetName() string
+	GetUsageData(start, end time.Time) ([]UsageData, error)
+	GetCostData(start, end time.Time) ([]CostData, error)
 }
